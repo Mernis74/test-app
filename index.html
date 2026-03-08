@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    
+    <!-- ÖNCELİKLİ: Diğer tüm link'lerden önce kendi ikonlarımızı ekle -->
+    <script>
+      // Bu script hemen çalışır ve platform ikonlarından önce kendi ikonlarımızı ekler
+      (function() {
+        // Mevcut manifest ve ikon linklerini kaldır
+        var existingManifest = document.querySelector('link[rel="manifest"]');
+        if (existingManifest) existingManifest.remove();
+        
+        var existingIcons = document.querySelectorAll('link[rel*="icon"]');
+        existingIcons.forEach(function(icon) { icon.remove(); });
+        
+        // Canvas ile PNG ikon oluştur
+        function createIcon(size) {
+          var canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          var ctx = canvas.getContext('2d');
+          var s = size;
+          
+          // Mavi gradient arka plan
+          var bgGrad = ctx.createLinearGradient(0, 0, s, s);
+          bgGrad.addColorStop(0, '#3b82f6');
+          bgGrad.addColorStop(1, '#1d4ed8');
+          
+          // Yuvarlak köşeli kare
+          var r = s * 0.18;
+          ctx.beginPath();
+          ctx.moveTo(r, 0);
+          ctx.lineTo(s - r, 0);
+          ctx.quadraticCurveTo(s, 0, s, r);
+          ctx.lineTo(s, s - r);
+          ctx.quadraticCurveTo(s, s, s - r, s);
+          ctx.lineTo(r, s);
+          ctx.quadraticCurveTo(0, s, 0, s - r);
+          ctx.lineTo(0, r);
+          ctx.quadraticCurveTo(0, 0, r, 0);
+          ctx.closePath();
+          ctx.fillStyle = bgGrad;
+          ctx.fill();
+          
+          // Defter koyu arka plan
+          ctx.fillStyle = '#1e40af';
+          ctx.beginPath();
+          ctx.roundRect(s*0.15, s*0.20, s*0.70, s*0.60, s*0.06);
+          ctx.fill();
+          
+          // Defter beyaz kağıt
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.roundRect(s*0.20, s*0.25, s*0.60, s*0.50, s*0.04);
+          ctx.fill();
+          
+          // Yeşil gelir çizgisi 1
+          ctx.fillStyle = '#22c55e';
+          ctx.fillRect(s*0.26, s*0.32, s*0.22, s*0.05);
+          
+          // Kırmızı gider çizgisi 1
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(s*0.26, s*0.40, s*0.32, s*0.05);
+          
+          // Yeşil gelir çizgisi 2
+          ctx.fillStyle = '#22c55e';
+          ctx.fillRect(s*0.26, s*0.48, s*0.16, s*0.05);
+          
+          // Kırmızı gider çizgisi 2
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(s*0.26, s*0.56, s*0.26, s*0.05);
+          
+          // Yeşil gelir çizgisi 3
+          ctx.fillStyle = '#22c55e';
+          ctx.fillRect(s*0.26, s*0.64, s*0.18, s*0.05);
+          
+          // Para (altın)
+          var cx = s * 0.72, cy = s * 0.50, cr = s * 0.13;
+          var coinGrad = ctx.createRadialGradient(cx-cr*0.3, cy-cr*0.3, 0, cx, cy, cr);
+          coinGrad.addColorStop(0, '#fde047');
+          coinGrad.addColorStop(1, '#f59e0b');
+          ctx.beginPath();
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+          ctx.fillStyle = coinGrad;
+          ctx.fill();
+          ctx.strokeStyle = '#d97706';
+          ctx.lineWidth = s * 0.012;
+          ctx.stroke();
+          
+          // TL sembolü
+          ctx.fillStyle = '#92400e';
+          ctx.font = 'bold ' + (s * 0.11) + 'px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('₺', cx, cy + s*0.01);
+          
+          // Yeşil artı butonu
+          var px = s * 0.80, py = s * 0.22, pr = s * 0.09;
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+          ctx.fillStyle = '#22c55e';
+          ctx.fill();
+          
+          // Artı işareti
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = s * 0.03;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(px - pr*0.5, py);
+          ctx.lineTo(px + pr*0.5, py);
+          ctx.moveTo(px, py - pr*0.5);
+          ctx.lineTo(px, py + pr*0.5);
+          ctx.stroke();
+          
+          return canvas.toDataURL('image/png');
+        }
+        
+        // İkonları oluştur
+        var icon180 = createIcon(180);
+        var icon192 = createIcon(192);
+        var icon512 = createIcon(512);
+        
+        // Apple Touch Icon - EN ÖNEMLİ
+        var link1 = document.createElement('link');
+        link1.rel = 'apple-touch-icon';
+        link1.href = icon180;
+        document.head.insertBefore(link1, document.head.firstChild);
+        
+        var link2 = document.createElement('link');
+        link2.rel = 'apple-touch-icon';
+        link2.sizes = '180x180';
+        link2.href = icon180;
+        document.head.insertBefore(link2, document.head.firstChild);
+        
+        var link3 = document.createElement('link');
+        link3.rel = 'apple-touch-icon';
+        link3.sizes = '152x152';
+        link3.href = createIcon(152);
+        document.head.insertBefore(link3, document.head.firstChild);
+        
+        var link4 = document.createElement('link');
+        link4.rel = 'apple-touch-icon-precomposed';
+        link4.href = icon180;
+        document.head.insertBefore(link4, document.head.firstChild);
+        
+        // Favicon
+        var favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        favicon.type = 'image/png';
+        favicon.sizes = '192x192';
+        favicon.href = icon192;
+        document.head.insertBefore(favicon, document.head.firstChild);
+        
+        // Manifest oluştur
+        var manifest = {
+          name: 'Gelir - Gider Yönetimi',
+          short_name: 'Gelir Gider',
+          description: 'Kişisel gelir ve gider takip uygulaması',
+          start_url: './',
+          scope: './',
+          display: 'standalone',
+          background_color: '#0f172a',
+          theme_color: '#1e40af',
+          orientation: 'portrait',
+          icons: [
+            { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          ]
+        };
+        
+        var manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        var manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = URL.createObjectURL(manifestBlob);
+        document.head.insertBefore(manifestLink, document.head.firstChild);
+        
+        // Global erişim için
+        window.appIcon = icon192;
+        window.appIcons = { icon180: icon180, icon192: icon192, icon512: icon512 };
+      })();
+    </script>
+    
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e40af" />
+    <meta name="background-color" content="#0f172a" />
+    <meta name="description" content="Gelir - Gider Yönetimi: Kişisel bütçe takip ve finansal yönetim uygulaması" />
+    
+    <!-- iOS Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Gelir Gider" />
+    
+    <!-- Android Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <title>Gelir - Gider Yönetimi</title>
+    
+    <style>
+      * {
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+      
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #0f172a;
+      }
+      
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden;
+        background: #0f172a;
+      }
+      
+      /* Splash Screen */
+      #splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      #splash-screen.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash-screen .logo {
+        width: 120px;
+        height: 120px;
+        border-radius: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        animation: pulse 2s infinite;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.4);
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      }
+      #splash-screen .logo img {
+        width: 100%;
+        height: 100%;
+        border-radius: 28px;
+      }
+      #splash-screen .title {
+        color: white;
+        font-family: 'Inter', sans-serif;
+        font-size: 26px;
+        font-weight: 700;
+        text-align: center;
+      }
+      #splash-screen .subtitle {
+        color: rgba(255,255,255,0.6);
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+      #splash-screen .loader {
+        margin-top: 30px;
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(59, 130, 246, 0.3);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+      <div class="logo" id="splash-logo"></div>
+      <div class="title">Gelir - Gider Yönetimi</div>
+      <div class="subtitle">Kişisel Bütçe Takip Uygulaması</div>
+      <div class="loader"></div>
+    </div>
+    
+    <script>
+      // Splash logo'ya ikonu ekle
+      setTimeout(function() {
+        if (window.appIcon) {
+          var img = document.createElement('img');
+          img.src = window.appIcon;
+          img.alt = 'Gelir Gider';
+          document.getElementById('splash-logo').appendChild(img);
+        }
+      }, 10);
+    </script>
+    
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      // Hide splash screen
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var splash = document.getElementById('splash-screen');
+          if (splash) {
+            splash.classList.add('hide');
+            setTimeout(function() { splash.remove(); }, 500);
+          }
+        }, 1500);
+      });
+      
+      // Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      }
+    </script>
+  </body>
+</html>
