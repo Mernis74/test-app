@@ -1,6 +1,6 @@
 {
   "name": "Gelir - Gider Yönetimi",
-  "short_name": "Gelir Gider",
+  "short_name": "Gelir - Gider Yönetimi",
   "description": "Kişisel bütçe takip ve finansal yönetim uygulaması",
   "start_url": "/",
   "display": "standalone",
