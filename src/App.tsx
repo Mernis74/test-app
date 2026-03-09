@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CryptoJS from 'crypto-js';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import {
   Wallet, TrendingUp, TrendingDown, Plus, Minus, X,
   PieChart as PieChartIcon, Home, List, BarChart3,
@@ -797,6 +797,7 @@ const PremiumModal = ({
         { text: 'Trend analizi', included: false },
         { text: 'Gelir kategori analizi', included: false },
         { text: 'Excel ve PDF rapor', included: false },
+        { text: 'Verileri sıfırla', included: false },
         { text: 'Öncelikli destek', included: false },
       ],
     },
@@ -814,6 +815,7 @@ const PremiumModal = ({
         { text: 'Bütçe hedefleri (sınırsız)', included: true },
         { text: 'Veri dışa aktarma (Excel + PDF)', included: true },
         { text: 'Sınırsız bildirim', included: true },
+        { text: 'Verileri sıfırla', included: true },
         { text: 'Öncelikli destek', included: true },
       ],
     },
@@ -1618,13 +1620,13 @@ const TransactionItem = ({ transaction, onDelete, onEdit, onStatusChange, incCat
               </p>
               {onEdit && (
                 <motion.button whileTap={{ scale: 0.85 }} onClick={() => onEdit(transaction)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
-                  <Edit3 className="w-3.5 h-3.5 text-white/40 hover:text-blue-400" />
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all">
+                  <Edit3 className="w-3.5 h-3.5 text-blue-400" />
                 </motion.button>
               )}
               <motion.button whileTap={{ scale: 0.85 }} onClick={() => onDelete(transaction.id)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
-                <Trash2 className="w-3.5 h-3.5 text-white/40 hover:text-rose-400" />
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all">
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
               </motion.button>
             </div>
           </div>
@@ -2431,106 +2433,195 @@ const BudgetPage = ({ transactions, budgets, setBudgets, selectedMonth, onMonthC
   );
 };
 
+// Türkçe karakterleri ASCII'ye çevir (PDF için)
+const turkishToAscii = (text: string): string => {
+  const charMap: { [key: string]: string } = {
+    'ğ': 'g', 'Ğ': 'G', 'ü': 'u', 'Ü': 'U', 'ş': 's', 'Ş': 'S',
+    'ı': 'i', 'İ': 'I', 'ö': 'o', 'Ö': 'O', 'ç': 'c', 'Ç': 'C'
+  };
+  return text.replace(/[ğĞüÜşŞıİöÖçÇ]/g, char => charMap[char] || char);
+};
+
 // Export Data Function
-const exportData = async (format: 'csv' | 'pdf', transactions: Transaction[], incCats: CategoryData[], expCats: CategoryData[]): Promise<void> => {
+const exportData = async (format: 'csv' | 'excel' | 'pdf', transactions: Transaction[], incCats: CategoryData[], expCats: CategoryData[]): Promise<void> => {
   const data = transactions.map(t => {
     const category = getCategoryInfo(t.category, t.type, incCats, expCats);
     return {
-      Tarih: t.date,
+      Tarih: formatFullDate(t.date),
       Tür: t.type === 'income' ? 'Gelir' : 'Gider',
       Kategori: category.name,
       Açıklama: t.description || '-',
       Tutar: t.amount,
       Durum: t.type === 'expense' ? (STATUS_CONFIG[t.status || 'paid'].label) : '-',
-      VadeTarihi: t.dueDate || '-',
+      VadeTarihi: t.dueDate ? formatFullDate(t.dueDate) : '-',
     };
   });
 
-  const fileName = `gelir-gider-${new Date().toISOString().split('T')[0]}`;
+  const fileName = `gelir-gider-rapor`;
+  const dateStr = new Date().toISOString().split('T')[0];
 
   if (format === 'pdf') {
-    // Create PDF using jsPDF
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(20);
-    doc.setTextColor(59, 130, 246); // Blue color
-    doc.text('Gelir - Gider Raporu', 14, 22);
-    
-    // Add date
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 14, 32);
-    
-    // Calculate totals
+    // jsPDF ile gerçek PDF oluştur
     const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
     const balance = totalIncome - totalExpense;
     
-    // Add summary
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text(`Toplam Gelir: ${formatCurrency(totalIncome)}`, 14, 45);
-    doc.setTextColor(220, 38, 38);
-    doc.text(`Toplam Gider: ${formatCurrency(totalExpense)}`, 14, 53);
-    doc.setTextColor(balance >= 0 ? 16 : 220, balance >= 0 ? 185 : 38, balance >= 0 ? 129 : 38);
-    doc.text(`Net Bakiye: ${formatCurrency(balance)}`, 14, 61);
+    const doc = new jsPDF();
     
-    // Add table
+    // Başlık
+    doc.setFontSize(20);
+    doc.setTextColor(59, 130, 246); // Mavi
+    doc.text(turkishToAscii('Gelir - Gider Raporu'), 105, 20, { align: 'center' });
+    
+    // Tarih
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(turkishToAscii(`Olusturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')}`), 105, 28, { align: 'center' });
+    
+    // Özet kutuları
+    doc.setFontSize(12);
+    
+    // Gelir kutusu
+    doc.setFillColor(209, 250, 229); // Yeşil arka plan
+    doc.rect(15, 35, 55, 20, 'F');
+    doc.setTextColor(4, 120, 87);
+    doc.text(turkishToAscii('Toplam Gelir'), 42.5, 42, { align: 'center' });
+    doc.setFontSize(11);
+    doc.text(turkishToAscii(formatCurrency(totalIncome)), 42.5, 50, { align: 'center' });
+    
+    // Gider kutusu
+    doc.setFillColor(254, 226, 226); // Kırmızı arka plan
+    doc.rect(75, 35, 55, 20, 'F');
+    doc.setTextColor(220, 38, 38);
+    doc.setFontSize(12);
+    doc.text(turkishToAscii('Toplam Gider'), 102.5, 42, { align: 'center' });
+    doc.setFontSize(11);
+    doc.text(turkishToAscii(formatCurrency(totalExpense)), 102.5, 50, { align: 'center' });
+    
+    // Bakiye kutusu
+    if (balance >= 0) {
+      doc.setFillColor(209, 250, 229);
+      doc.setTextColor(4, 120, 87);
+    } else {
+      doc.setFillColor(254, 226, 226);
+      doc.setTextColor(220, 38, 38);
+    }
+    doc.rect(135, 35, 55, 20, 'F');
+    doc.setFontSize(12);
+    doc.text(turkishToAscii('Net Bakiye'), 162.5, 42, { align: 'center' });
+    doc.setFontSize(11);
+    doc.text(turkishToAscii(formatCurrency(balance)), 162.5, 50, { align: 'center' });
+    
+    // Tablo
     const tableData = data.map(row => [
-      row.Tarih,
-      row.Tür,
-      row.Kategori,
-      row.Açıklama,
-      formatCurrency(row.Tutar),
-      row.Durum,
+      turkishToAscii(row.Tarih),
+      turkishToAscii(row.Tür),
+      turkishToAscii(row.Kategori),
+      turkishToAscii(row.Açıklama),
+      turkishToAscii(formatCurrency(row.Tutar)),
+      turkishToAscii(row.Durum),
     ]);
     
-    (doc as any).autoTable({
-      startY: 70,
-      head: [['Tarih', 'Tür', 'Kategori', 'Açıklama', 'Tutar', 'Durum']],
+    autoTable(doc, {
+      head: [[
+        turkishToAscii('Tarih'),
+        turkishToAscii('Tur'),
+        turkishToAscii('Kategori'),
+        turkishToAscii('Aciklama'),
+        turkishToAscii('Tutar'),
+        turkishToAscii('Durum'),
+      ]],
       body: tableData,
-      theme: 'striped',
+      startY: 60,
       headStyles: {
         fillColor: [59, 130, 246],
-        textColor: 255,
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251],
       },
       styles: {
         fontSize: 9,
         cellPadding: 3,
       },
-      alternateRowStyles: {
-        fillColor: [245, 247, 250],
-      },
       columnStyles: {
         0: { cellWidth: 25 },
-        1: { cellWidth: 18 },
+        1: { cellWidth: 20 },
         2: { cellWidth: 30 },
         3: { cellWidth: 45 },
-        4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 22 },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 25 },
       },
     });
     
-    // Add footer
-    const pageCount = (doc as any).internal.getNumberOfPages();
+    // Altbilgi
+    const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
-      doc.setTextColor(150);
+      doc.setTextColor(150, 150, 150);
       doc.text(
-        `Sayfa ${i} / ${pageCount} - Gelir Gider Yönetimi Uygulaması`,
-        doc.internal.pageSize.width / 2,
+        turkishToAscii(`Toplam ${data.length} islem • Gelir - Gider Yonetimi Uygulamasi • Sayfa ${i}/${pageCount}`),
+        105,
         doc.internal.pageSize.height - 10,
         { align: 'center' }
       );
     }
     
-    // Save PDF
-    doc.save(`${fileName}.pdf`);
+    // PDF'i indir
+    doc.save(`${fileName}-${dateStr}.pdf`);
+    return;
+  } else if (format === 'excel') {
+    // Excel XML format
+    const header = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+  <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#3B82F6" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="Income"><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="Expense"><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/></Style>
+</Styles>
+<Worksheet ss:Name="Rapor">
+<Table>
+<Row ss:StyleID="Header">
+  <Cell><Data ss:Type="String">Tarih</Data></Cell>
+  <Cell><Data ss:Type="String">Tür</Data></Cell>
+  <Cell><Data ss:Type="String">Kategori</Data></Cell>
+  <Cell><Data ss:Type="String">Açıklama</Data></Cell>
+  <Cell><Data ss:Type="String">Tutar</Data></Cell>
+  <Cell><Data ss:Type="String">Durum</Data></Cell>
+  <Cell><Data ss:Type="String">Vade Tarihi</Data></Cell>
+</Row>`;
+    
+    const rows = data.map(row => {
+      const style = row.Tür === 'Gelir' ? 'Income' : 'Expense';
+      return `<Row ss:StyleID="${style}">
+  <Cell><Data ss:Type="String">${row.Tarih}</Data></Cell>
+  <Cell><Data ss:Type="String">${row.Tür}</Data></Cell>
+  <Cell><Data ss:Type="String">${row.Kategori}</Data></Cell>
+  <Cell><Data ss:Type="String">${row.Açıklama}</Data></Cell>
+  <Cell><Data ss:Type="Number">${row.Tutar}</Data></Cell>
+  <Cell><Data ss:Type="String">${row.Durum}</Data></Cell>
+  <Cell><Data ss:Type="String">${row.VadeTarihi}</Data></Cell>
+</Row>`;
+    }).join('\n');
+    
+    const footer = `</Table></Worksheet></Workbook>`;
+    const content = header + rows + footer;
+    
+    const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName}-${dateStr}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } else {
-    // CSV format with BOM for Excel Turkish character support
+    // CSV format
     const BOM = '\uFEFF';
     const headers = ['Tarih', 'Tür', 'Kategori', 'Açıklama', 'Tutar', 'Durum', 'Vade Tarihi'].join(';');
     const rows = data.map(row => [
@@ -2538,7 +2629,7 @@ const exportData = async (format: 'csv' | 'pdf', transactions: Transaction[], in
       row.Tür,
       row.Kategori,
       row.Açıklama,
-      row.Tutar.toString().replace('.', ','), // Turkish decimal format
+      row.Tutar.toString().replace('.', ','),
       row.Durum,
       row.VadeTarihi,
     ].join(';'));
@@ -2548,7 +2639,7 @@ const exportData = async (format: 'csv' | 'pdf', transactions: Transaction[], in
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${fileName}.csv`;
+    a.download = `${fileName}-${dateStr}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2590,13 +2681,8 @@ const ExportDataModal = ({
     if (format === 'pdf' && !canExportPdf) { onUpgrade(); return; }
     setExporting(true);
     try {
-      if (format === 'excel') {
-        await exportData('csv', transactions, incCats, expCats); // CSV for Excel compatibility
-        setExportSuccess('Excel');
-      } else {
-        await exportData(format, transactions, incCats, expCats);
-        setExportSuccess(format === 'csv' ? 'CSV' : 'PDF');
-      }
+      await exportData(format, transactions, incCats, expCats);
+      setExportSuccess(format === 'csv' ? 'CSV' : format === 'excel' ? 'Excel' : 'PDF');
       setTimeout(() => setExportSuccess(null), 3000);
     } catch (error) {
       console.error('Export error:', error);
@@ -2777,6 +2863,148 @@ const ExportDataModal = ({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+};
+
+// Reset Data Modal
+const ResetDataModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onReset: () => void;
+  userPlan: UserPlan;
+  onUpgrade: () => void;
+}> = ({ isOpen, onClose, onReset, userPlan, onUpgrade }) => {
+  const isPro = userPlan.type === 'pro';
+
+  if (!isOpen) return null;
+
+  const handleReset = () => {
+    if (isPro) {
+      onReset();
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-800 rounded-2xl w-full max-w-md overflow-hidden">
+        <div className="bg-gradient-to-r from-red-600 to-red-700 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-white" />
+              <h2 className="text-lg font-bold text-white">Verileri Sıfırla</h2>
+            </div>
+            <button onClick={onClose} className="text-white/80 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          {!isPro ? (
+            <>
+              {/* Pro gerekliliği mesajı */}
+              <div className="text-center py-6">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <Lock className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Pro Üyelik Gerekli</h3>
+                <p className="text-white/60 mb-6">
+                  Verileri sıfırlama özelliği sadece Pro üyelere açıktır.
+                </p>
+                
+                {userPlan.type === 'premium' && (
+                  <div className="bg-amber-500/20 border border-amber-500/30 rounded-xl p-4 mb-6 text-left">
+                    <div className="flex items-start gap-3">
+                      <Star className="w-5 h-5 text-amber-400 mt-0.5" />
+                      <div>
+                        <p className="text-amber-300 font-medium text-sm">Premium Üyesiniz</p>
+                        <p className="text-amber-200/60 text-xs mt-1">
+                          Bu özellik Pro sürümde kullanılabilir. Pro'ya yükselterek tüm özelliklere erişebilirsiniz.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => { onClose(); onUpgrade(); }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-5 h-5" />
+                  Pro'ya Yükselt
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-red-400 mb-2">Dikkat!</h3>
+                    <p className="text-sm text-slate-300">
+                      Bu işlem geri alınamaz. Aşağıdaki tüm veriler kalıcı olarak silinecektir:
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-6">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Tüm gelir ve gider işlemleri</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Özel kategoriler</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Bütçe hedefleri</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Bildirimler</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Güvenlik ayarları (PIN/Desen)</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Tüm uygulama ayarları</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex-1 py-3 rounded-xl bg-red-600 text-white font-medium flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Verileri Sil
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -3092,6 +3320,7 @@ const SettingsPage = ({
   onOpenManageCategories,
   onOpenExportData,
   onOpenSupport,
+  onOpenResetData,
 }: {
   userPlan: UserPlan;
   onUpgrade: () => void;
@@ -3107,6 +3336,7 @@ const SettingsPage = ({
   onOpenManageCategories: () => void;
   onOpenExportData: () => void;
   onOpenSupport: () => void;
+  onOpenResetData: () => void;
 }) => {
   const unreadCount = notifications.filter((n: AppNotification) => !n.read).length;
   const isSecurityEnabled = securitySettings.lockType !== 'none';
@@ -3216,6 +3446,25 @@ const SettingsPage = ({
           description: userPlan.type === 'free' ? 'Ücretsiz plan' : userPlan.type === 'premium' ? 'Premium üyelik' : 'Pro üyelik',
           color: userPlan.type === 'free' ? 'from-gray-500 to-gray-600' : userPlan.type === 'premium' ? 'from-amber-500 to-orange-600' : 'from-violet-500 to-purple-600',
           onClick: onUpgrade,
+        },
+      ],
+    },
+    {
+      title: 'Tehlikeli Bölge',
+      items: [
+        {
+          id: 'reset',
+          icon: Trash2,
+          label: 'Verileri Sıfırla',
+          description: userPlan.type === 'pro' 
+            ? 'Tüm verileri sil ve uygulamayı sıfırla' 
+            : userPlan.type === 'premium'
+              ? 'Bu özellik Pro sürümde kullanılabilir'
+              : 'Pro üyelikte kullanılabilir',
+          color: userPlan.type === 'pro' ? 'from-red-500 to-rose-600' : 'from-gray-500 to-gray-600',
+          badge: userPlan.type !== 'pro' ? '🔒' : null,
+          badgeColor: 'bg-violet-500',
+          onClick: onOpenResetData,
         },
       ],
     },
@@ -4338,6 +4587,7 @@ export default function App() {
   const [showSecuritySettings, setShowSecuritySettings] = useState(false);
   const [showExportData, setShowExportData] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
+  const [showResetData, setShowResetData] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isSettingUpPin, setIsSettingUpPin] = useState(false);
   const lastActivityRef = useRef(Date.now());
@@ -4690,6 +4940,35 @@ export default function App() {
     setShowPremiumModal(false); setShowSuccessModal(true);
   };
 
+  // Reset all data
+  const handleResetAllData = () => {
+    // Clear all localStorage
+    localStorage.removeItem('transactions');
+    localStorage.removeItem('budgets');
+    localStorage.removeItem('userPlan');
+    localStorage.removeItem('incomeCategories');
+    localStorage.removeItem('expenseCategories');
+    localStorage.removeItem('notifications');
+    localStorage.removeItem('notificationSettings');
+    localStorage.removeItem('securitySettings');
+    
+    // Reset states to defaults
+    setTransactions([]);
+    setBudgets([]);
+    setUserPlan({ type: 'free' });
+    setIncomeCategories(DEFAULT_INCOME_CATEGORIES);
+    setExpenseCategories(DEFAULT_EXPENSE_CATEGORIES);
+    setNotifications([]);
+    setNotificationSettings(DEFAULT_NOTIFICATION_SETTINGS);
+    setSecuritySettings(DEFAULT_SECURITY_SETTINGS);
+    setIsLocked(false);
+    setActiveTab('home');
+    setSelectedMonth(getMonthKey(new Date()));
+    
+    // Close modal
+    setShowResetData(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
       <div className="h-full max-w-md mx-auto flex flex-col">
@@ -4748,6 +5027,7 @@ export default function App() {
                   onOpenManageCategories={() => setShowManageCategories(true)}
                   onOpenExportData={() => setShowExportData(true)}
                   onOpenSupport={() => setShowSupport(true)}
+                  onOpenResetData={() => setShowResetData(true)}
                 />
               </motion.div>
             )}
@@ -4828,6 +5108,14 @@ export default function App() {
         onClose={() => setShowSupport(false)}
         userPlan={userPlan}
         onUpgrade={() => { setShowSupport(false); setShowPremiumModal(true); }}
+      />
+
+      <ResetDataModal
+        isOpen={showResetData}
+        onClose={() => setShowResetData(false)}
+        onReset={handleResetAllData}
+        userPlan={userPlan}
+        onUpgrade={() => { setShowResetData(false); setShowPremiumModal(true); }}
       />
 
       {/* PIN Lock Screen */}
