@@ -231,113 +231,60 @@
         overflow: hidden;
         background: #0f172a;
       }
-      
-      /* Splash Screen */
-      #splash-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.5s ease;
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-      }
-      #splash-screen.hide {
-        opacity: 0;
-        pointer-events: none;
-      }
-      #splash-screen .logo {
-        width: 120px;
-        height: 120px;
-        border-radius: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 24px;
-        animation: pulse 2s infinite;
-        overflow: hidden;
-        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.4);
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-      }
-      #splash-screen .logo img {
-        width: 100%;
-        height: 100%;
-        border-radius: 28px;
-      }
-      #splash-screen .title {
-        color: white;
-        font-family: 'Inter', sans-serif;
-        font-size: 26px;
-        font-weight: 700;
-        text-align: center;
-      }
-      #splash-screen .subtitle {
-        color: rgba(255,255,255,0.6);
-        font-family: 'Inter', sans-serif;
-        font-size: 14px;
-        margin-top: 8px;
-      }
-      #splash-screen .loader {
-        margin-top: 30px;
-        width: 40px;
-        height: 40px;
-        border: 3px solid rgba(59, 130, 246, 0.3);
-        border-top-color: #3b82f6;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-      @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <!-- Splash Screen -->
+    <div id="splash-screen" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+      <div style="width: 100px; height: 100px; margin-bottom: 24px;">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="splashBg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#3b82f6"/>
+              <stop offset="100%" style="stop-color:#1d4ed8"/>
+            </linearGradient>
+          </defs>
+          <rect width="200" height="200" rx="40" fill="url(#splashBg)"/>
+          <rect x="35" y="45" width="130" height="110" rx="8" fill="white"/>
+          <rect x="50" y="65" width="60" height="8" rx="4" fill="#22c55e"/>
+          <rect x="50" y="85" width="80" height="8" rx="4" fill="#22c55e" opacity="0.6"/>
+          <rect x="50" y="105" width="45" height="8" rx="4" fill="#ef4444"/>
+          <rect x="50" y="125" width="70" height="8" rx="4" fill="#ef4444" opacity="0.6"/>
+          <circle cx="145" cy="130" r="30" fill="#fbbf24"/>
+          <text x="145" y="138" text-anchor="middle" fill="#1e3a5f" font-size="28" font-weight="bold">₺</text>
+        </svg>
+      </div>
+      <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0 0 8px 0;">Gelir - Gider Yönetimi</h1>
+      <p style="color: #94a3b8; font-size: 14px; margin: 0;">Yükleniyor...</p>
+      <div style="margin-top: 24px; width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    </div>
+    
+    <style>
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
     </style>
-  </head>
-  <body>
-    <!-- Splash Screen -->
-    <div id="splash-screen">
-      <div class="logo" id="splash-logo"></div>
-      <div class="title">Gelir - Gider Yönetimi</div>
-      <div class="subtitle">Kişisel Bütçe Takip Uygulaması</div>
-      <div class="loader"></div>
-    </div>
     
     <script>
-      // Splash logo'ya ikonu ekle
-      setTimeout(function() {
-        if (window.appIcon) {
-          var img = document.createElement('img');
-          img.src = window.appIcon;
-          img.alt = 'Gelir Gider';
-          document.getElementById('splash-logo').appendChild(img);
-        }
-      }, 10);
-    </script>
-    
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    
-    <script>
-      // Hide splash screen
       window.addEventListener('load', function() {
         setTimeout(function() {
           var splash = document.getElementById('splash-screen');
           if (splash) {
-            splash.classList.add('hide');
-            setTimeout(function() { splash.remove(); }, 500);
+            splash.style.opacity = '0';
+            splash.style.transition = 'opacity 0.3s ease';
+            setTimeout(function() {
+              splash.remove();
+            }, 300);
           }
-        }, 1500);
+        }, 500);
       });
-      
+    </script>
+    
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
       // Service Worker
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function() {});

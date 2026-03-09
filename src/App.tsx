@@ -41,6 +41,7 @@ interface Transaction {
   date: string;
   status?: ExpenseStatus;
   dueDate?: string;
+  belongsToMonth?: string; // İşlemin ait olduğu ay (örn: '2025-02')
 }
 
 interface CategoryData {
@@ -283,6 +284,14 @@ const formatDate = (dateString: string): string => {
   return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(date);
 };
 
+const formatFullDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 const getCategoryInfo = (categoryId: string, type: 'income' | 'expense', incCats: CategoryData[], expCats: CategoryData[]): CategoryData => {
   const categories = type === 'income' ? incCats : expCats;
   return categories.find(c => c.id === categoryId) || categories[categories.length - 1] || {
@@ -297,6 +306,11 @@ const getMonthKey = (date: Date): string => {
 const getMonthLabel = (monthKey: string): string => {
   const [year, month] = monthKey.split('-').map(Number);
   return `${MONTH_NAMES[month - 1]} ${year}`;
+};
+
+// İşlemin ait olduğu ayı döndürür
+const getTransactionMonth = (t: Transaction): string => {
+  return t.belongsToMonth || getMonthKey(new Date(t.date));
 };
 
 const checkOverdue = (transaction: Transaction): ExpenseStatus => {
@@ -1572,8 +1586,9 @@ const QuickActions = ({ onAdd, userPlan, transactionCount, onUpgrade, onManageCa
 };
 
 // Transaction Item
-const TransactionItem = ({ transaction, onDelete, onStatusChange, incCats, expCats }: {
+const TransactionItem = ({ transaction, onDelete, onEdit, onStatusChange, incCats, expCats }: {
   transaction: Transaction; onDelete: (id: string) => void;
+  onEdit?: (transaction: Transaction) => void;
   onStatusChange?: (id: string, s: ExpenseStatus) => void;
   incCats: CategoryData[]; expCats: CategoryData[];
 }) => {
@@ -1583,77 +1598,150 @@ const TransactionItem = ({ transaction, onDelete, onStatusChange, incCats, expCa
 
   return (
     <motion.div layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-      className={`flex items-center gap-4 p-4 bg-white/5 backdrop-blur rounded-2xl border group hover:bg-white/10 transition-all ${
+      className={`p-4 bg-white/5 backdrop-blur rounded-2xl border group hover:bg-white/10 transition-all ${
         actualStatus === 'overdue' ? 'border-rose-500/30' : actualStatus === 'pending' ? 'border-amber-500/30' : 'border-white/10'
       }`}>
-      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${category.gradient} flex items-center justify-center shadow-lg flex-shrink-0`}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-medium truncate">{transaction.description || category.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-white/50 text-sm">{category.name} • {formatDate(transaction.date)}</p>
-          {transaction.dueDate && transaction.type === 'expense' && actualStatus !== 'paid' && (
-            <span className="text-white/40 text-xs">Vade: {formatDate(transaction.dueDate)}</span>
-          )}
+      {/* Üst: İkon, Başlık, Tutar, Aksiyonlar */}
+      <div className="flex items-start gap-3">
+        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${category.gradient} flex items-center justify-center shadow-lg flex-shrink-0 mt-0.5`}>
+          <Icon className="w-5 h-5 text-white" />
         </div>
-      </div>
-      <div className="text-right flex flex-col items-end gap-2">
-        <p className={`font-bold ${transaction.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
-          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-        </p>
-        <div className="flex items-center gap-2">
-          {transaction.type === 'expense' && actualStatus && (
-            <StatusBadge status={actualStatus} size="small" onStatusChange={(s) => onStatusChange?.(transaction.id, s)} />
-          )}
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => onDelete(transaction.id)}
-            className="p-2 hover:bg-rose-500/20 rounded-xl transition-all">
-            <Trash2 className="w-4 h-4 text-white/40 hover:text-rose-400" />
-          </motion.button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-white font-medium truncate leading-tight">{transaction.description || category.name}</p>
+              <p className="text-white/40 text-xs mt-0.5">{category.name}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <p className={`font-bold text-sm ${transaction.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+              </p>
+              {onEdit && (
+                <motion.button whileTap={{ scale: 0.85 }} onClick={() => onEdit(transaction)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
+                  <Edit3 className="w-3.5 h-3.5 text-white/40 hover:text-blue-400" />
+                </motion.button>
+              )}
+              <motion.button whileTap={{ scale: 0.85 }} onClick={() => onDelete(transaction.id)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
+                <Trash2 className="w-3.5 h-3.5 text-white/40 hover:text-rose-400" />
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Alt: Tarihler ve Durum - tek satırda */}
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2">
+            <div className="flex items-center gap-1 text-xs">
+              <Calendar className="w-3 h-3 text-blue-400" />
+              <span className="text-white/50">{formatFullDate(transaction.date)}</span>
+            </div>
+            {transaction.dueDate && transaction.type === 'expense' && (
+              <div className="flex items-center gap-1 text-xs">
+                <Clock className={`w-3 h-3 ${
+                  actualStatus === 'overdue' ? 'text-rose-400' : actualStatus === 'pending' ? 'text-amber-400' : 'text-emerald-400'
+                }`} />
+                <span className={`${
+                  actualStatus === 'overdue' ? 'text-rose-300' : actualStatus === 'pending' ? 'text-amber-300' : 'text-emerald-300/70'
+                }`}>Vade: {formatFullDate(transaction.dueDate)}</span>
+              </div>
+            )}
+            {transaction.type === 'expense' && actualStatus && (
+              <StatusBadge status={actualStatus} size="small" onStatusChange={(s) => onStatusChange?.(transaction.id, s)} />
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
   );
 };
 
-// Add Transaction Modal
-const AddTransactionModal = ({ isOpen, onClose, type, onAdd, selectedMonth, categories }: {
+// Add/Edit Transaction Modal
+const AddTransactionModal = ({ isOpen, onClose, type, onAdd, onUpdate, selectedMonth, categories, editTransaction }: {
   isOpen: boolean; onClose: () => void; type: 'income' | 'expense';
-  onAdd: (t: Omit<Transaction, 'id'>) => void; selectedMonth: string; categories: CategoryData[];
+  onAdd: (t: Omit<Transaction, 'id'>) => void; onUpdate?: (t: Transaction) => void;
+  selectedMonth: string; categories: CategoryData[]; editTransaction?: Transaction | null;
 }) => {
-  const [year, month] = selectedMonth.split('-').map(Number);
-  const defaultDate = new Date(year, month - 1, Math.min(new Date().getDate(), 28));
-  const dateStr = defaultDate.toISOString().split('T')[0];
-
+  const isEditing = !!editTransaction;
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState(dateStr);
+  const [date, setDate] = useState('');
   const [status, setStatus] = useState<ExpenseStatus>('pending');
   const [dueDate, setDueDate] = useState('');
   const [hasDueDate, setHasDueDate] = useState(false);
+  const [transactionMonth, setTransactionMonth] = useState(selectedMonth);
+  const [belongsToMonth, setBelongsToMonth] = useState(selectedMonth);
 
   useEffect(() => {
     if (isOpen) {
-      const [y, m] = selectedMonth.split('-').map(Number);
-      const d = new Date(y, m - 1, Math.min(new Date().getDate(), 28));
-      setDate(d.toISOString().split('T')[0]);
-      const due = new Date(d); due.setDate(due.getDate() + 7);
-      setDueDate(due.toISOString().split('T')[0]);
-      setAmount(''); setCategory(''); setDescription('');
-      setStatus('pending'); setHasDueDate(false);
+      if (editTransaction) {
+        // Düzenleme modu
+        setAmount(editTransaction.amount.toString());
+        setCategory(editTransaction.category);
+        setDescription(editTransaction.description);
+        setDate(editTransaction.date);
+        setStatus(editTransaction.status || 'pending');
+        setDueDate(editTransaction.dueDate || '');
+        setHasDueDate(!!editTransaction.dueDate);
+        const editMonth = editTransaction.belongsToMonth || getMonthKey(new Date(editTransaction.date));
+        setTransactionMonth(editMonth);
+        setBelongsToMonth(editMonth);
+      } else {
+        // Yeni ekleme modu
+        setTransactionMonth(selectedMonth);
+        setBelongsToMonth(selectedMonth);
+        const [y, m] = selectedMonth.split('-').map(Number);
+        const d = new Date(y, m - 1, Math.min(new Date().getDate(), new Date(y, m, 0).getDate()));
+        setDate(d.toISOString().split('T')[0]);
+        const due = new Date(d); due.setDate(due.getDate() + 7);
+        setDueDate(due.toISOString().split('T')[0]);
+        setAmount(''); setCategory(''); setDescription('');
+        setStatus('pending'); setHasDueDate(false);
+      }
     }
-  }, [isOpen, selectedMonth]);
+  }, [isOpen, selectedMonth, editTransaction]);
+
+  // Ay değiştiğinde tarihi güncelle
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    const [y, m] = transactionMonth.split('-').map(Number);
+    const newDate = direction === 'prev'
+      ? new Date(y, m - 2, 1)
+      : new Date(y, m, 1);
+    const newMonthKey = getMonthKey(newDate);
+    setTransactionMonth(newMonthKey);
+    setBelongsToMonth(newMonthKey);
+    
+    const [ny, nm] = newMonthKey.split('-').map(Number);
+    const day = Math.min(new Date().getDate(), new Date(ny, nm, 0).getDate());
+    const d = new Date(ny, nm - 1, day);
+    setDate(d.toISOString().split('T')[0]);
+    
+    const due = new Date(d); due.setDate(due.getDate() + 7);
+    setDueDate(due.toISOString().split('T')[0]);
+  };
 
   const handleSubmit = () => {
     if (!amount || !category) return;
-    onAdd({
-      type, amount: parseFloat(amount), category, description, date,
-      status: type === 'expense' ? status : undefined,
-      dueDate: type === 'expense' && hasDueDate ? dueDate : undefined,
-    });
+    if (editTransaction && onUpdate) {
+      onUpdate({
+        ...editTransaction,
+        type, amount: parseFloat(amount), category, description, date,
+        status: type === 'expense' ? status : undefined,
+        dueDate: type === 'expense' && hasDueDate ? dueDate : undefined,
+        belongsToMonth: belongsToMonth,
+      });
+    } else {
+      onAdd({
+        type, amount: parseFloat(amount), category, description, date,
+        status: type === 'expense' ? status : undefined,
+        dueDate: type === 'expense' && hasDueDate ? dueDate : undefined,
+        belongsToMonth: belongsToMonth,
+      });
+    }
     onClose();
   };
+
+  const currentMonth = getMonthKey(new Date());
 
   return (
     <AnimatePresence>
@@ -1666,16 +1754,39 @@ const AddTransactionModal = ({ isOpen, onClose, type, onAdd, selectedMonth, cate
             className="w-full max-w-md bg-gradient-to-b from-slate-800 to-slate-900 rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">
-                {type === 'income' ? '💰 Gelir Ekle' : '💸 Gider Ekle'}
+                {isEditing ? (type === 'income' ? '✏️ Gelir Düzenle' : '✏️ Gider Düzenle') : (type === 'income' ? '💰 Gelir Ekle' : '💸 Gider Ekle')}
               </h2>
               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl"><X className="w-6 h-6 text-white/70" /></button>
             </div>
 
-            <div className="mb-4 p-3 bg-blue-500/20 rounded-xl border border-blue-500/30">
-              <p className="text-blue-300 text-sm flex items-center gap-2">
-                <Calendar className="w-4 h-4" />{getMonthLabel(selectedMonth)} için işlem ekleniyor
-              </p>
+            {/* Ay Seçici */}
+            <div className="mb-4 flex items-center justify-between bg-white/10 backdrop-blur-lg rounded-2xl p-3 border border-white/20">
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => handleMonthChange('prev')}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20">
+                <ChevronLeft className="w-5 h-5 text-white" />
+              </motion.button>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-400" />
+                <span className="text-white font-semibold">{getMonthLabel(transactionMonth)}</span>
+                {transactionMonth === currentMonth && (
+                  <span className="text-xs bg-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">Bu Ay</span>
+                )}
+              </div>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => handleMonthChange('next')}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20">
+                <ChevronRight className="w-5 h-5 text-white" />
+              </motion.button>
             </div>
+
+            {/* Kayıt bilgisi */}
+            {belongsToMonth !== selectedMonth && (
+              <div className="mb-4 p-3 bg-amber-500/20 rounded-xl border border-amber-500/30">
+                <p className="text-amber-300 text-sm flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  Bu işlem <strong>{getMonthLabel(belongsToMonth)}</strong> ayına kaydedilecek
+                </p>
+              </div>
+            )}
 
             <div className="mb-5">
               <label className="block text-white/70 text-sm mb-2">Tutar</label>
@@ -1712,9 +1823,40 @@ const AddTransactionModal = ({ isOpen, onClose, type, onAdd, selectedMonth, cate
             </div>
 
             <div className="mb-5">
-              <label className="block text-white/70 text-sm mb-2">Tarih</label>
+              <label className="block text-white/70 text-sm mb-2">İşlem Tarihi</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-2xl py-3 px-4 text-white focus:outline-none focus:border-white/40" />
+            </div>
+
+            {/* Ait Olduğu Ay Seçici */}
+            <div className="mb-5">
+              <label className="block text-white/70 text-sm mb-2">📅 Ait Olduğu Ay</label>
+              <p className="text-white/40 text-xs mb-2">Bu işlem hangi ayın geliri/gideri? (Örn: Şubat faturası Mart'ta ödense bile Şubat'ı seçin)</p>
+              <div className="flex items-center justify-between bg-white/10 border border-white/20 rounded-2xl p-3">
+                <motion.button whileTap={{ scale: 0.9 }} type="button"
+                  onClick={() => {
+                    const [y, m] = belongsToMonth.split('-').map(Number);
+                    setBelongsToMonth(getMonthKey(new Date(y, m - 2, 1)));
+                  }}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20">
+                  <ChevronLeft className="w-5 h-5 text-white" />
+                </motion.button>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-emerald-400" />
+                  <span className="text-white font-semibold">{getMonthLabel(belongsToMonth)}</span>
+                  {belongsToMonth === getMonthKey(new Date()) && (
+                    <span className="text-xs bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">Bu Ay</span>
+                  )}
+                </div>
+                <motion.button whileTap={{ scale: 0.9 }} type="button"
+                  onClick={() => {
+                    const [y, m] = belongsToMonth.split('-').map(Number);
+                    setBelongsToMonth(getMonthKey(new Date(y, m, 1)));
+                  }}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20">
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </motion.button>
+              </div>
             </div>
 
             {type === 'expense' && (
@@ -1759,7 +1901,7 @@ const AddTransactionModal = ({ isOpen, onClose, type, onAdd, selectedMonth, cate
               className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-all ${
                 type === 'income' ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/30' : 'bg-gradient-to-r from-rose-500 to-rose-600 shadow-rose-500/30'
               } disabled:opacity-50`}>
-              <span className="flex items-center justify-center gap-2"><Check className="w-5 h-5" />Kaydet</span>
+              <span className="flex items-center justify-center gap-2"><Check className="w-5 h-5" />{isEditing ? 'Güncelle' : 'Kaydet'}</span>
             </motion.button>
           </motion.div>
         </motion.div>
@@ -1771,13 +1913,14 @@ const AddTransactionModal = ({ isOpen, onClose, type, onAdd, selectedMonth, cate
 // ==================== PAGES ====================
 
 // Home Page
-const HomePage = ({ transactions, onAdd, onDelete, onStatusChange, selectedMonth, onMonthChange, userPlan, onUpgrade, incCats, expCats, onManageCategories, unreadNotifications, onOpenNotifications }: {
+const HomePage = ({ transactions, onAdd, onDelete, onEdit, onStatusChange, selectedMonth, onMonthChange, userPlan, onUpgrade, incCats, expCats, onManageCategories, unreadNotifications, onOpenNotifications }: {
   transactions: Transaction[]; onAdd: (t: 'income' | 'expense') => void; onDelete: (id: string) => void;
+  onEdit: (t: Transaction) => void;
   onStatusChange: (id: string, s: ExpenseStatus) => void; selectedMonth: string; onMonthChange: (m: string) => void;
   userPlan: UserPlan; onUpgrade: () => void; incCats: CategoryData[]; expCats: CategoryData[];
   onManageCategories: () => void; unreadNotifications: number; onOpenNotifications: () => void;
 }) => {
-  const filtered = useMemo(() => transactions.filter(t => getMonthKey(new Date(t.date)) === selectedMonth), [transactions, selectedMonth]);
+  const filtered = useMemo(() => transactions.filter(t => getTransactionMonth(t) === selectedMonth), [transactions, selectedMonth]);
   const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const pendingExp = filtered.filter(t => t.type === 'expense' && checkOverdue(t) === 'pending').reduce((s, t) => s + t.amount, 0);
@@ -1850,7 +1993,7 @@ const HomePage = ({ transactions, onAdd, onDelete, onStatusChange, selectedMonth
         <div className="space-y-3">
           <AnimatePresence>
             {recent.length > 0 ? recent.map((t) => (
-              <TransactionItem key={t.id} transaction={t} onDelete={onDelete} onStatusChange={onStatusChange}
+              <TransactionItem key={t.id} transaction={t} onDelete={onDelete} onEdit={onEdit} onStatusChange={onStatusChange}
                 incCats={incCats} expCats={expCats} />
             )) : (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
@@ -1893,8 +2036,9 @@ const HomePage = ({ transactions, onAdd, onDelete, onStatusChange, selectedMonth
 };
 
 // Transactions Page
-const TransactionsPage = ({ transactions, onDelete, onStatusChange, selectedMonth, onMonthChange, userPlan, onUpgrade, incCats, expCats }: {
-  transactions: Transaction[]; onDelete: (id: string) => void; onStatusChange: (id: string, s: ExpenseStatus) => void;
+const TransactionsPage = ({ transactions, onDelete, onEdit, onStatusChange, selectedMonth, onMonthChange, userPlan, onUpgrade, incCats, expCats }: {
+  transactions: Transaction[]; onDelete: (id: string) => void; onEdit: (t: Transaction) => void;
+  onStatusChange: (id: string, s: ExpenseStatus) => void;
   selectedMonth: string; onMonthChange: (m: string) => void; userPlan: UserPlan; onUpgrade: () => void;
   incCats: CategoryData[]; expCats: CategoryData[];
 }) => {
@@ -1903,14 +2047,14 @@ const TransactionsPage = ({ transactions, onDelete, onStatusChange, selectedMont
 
   const filtered = useMemo(() => {
     return transactions
-      .filter(t => getMonthKey(new Date(t.date)) === selectedMonth)
+      .filter(t => getTransactionMonth(t) === selectedMonth)
       .filter(t => filter === 'all' || t.type === filter)
       .filter(t => { if (statusFilter === 'all') return true; if (t.type === 'income') return true; return checkOverdue(t) === statusFilter; })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, selectedMonth, filter, statusFilter]);
 
-  const monthIncome = transactions.filter(t => getMonthKey(new Date(t.date)) === selectedMonth && t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const monthExpense = transactions.filter(t => getMonthKey(new Date(t.date)) === selectedMonth && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const monthIncome = transactions.filter(t => getTransactionMonth(t) === selectedMonth && t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const monthExpense = transactions.filter(t => getTransactionMonth(t) === selectedMonth && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -1957,7 +2101,7 @@ const TransactionsPage = ({ transactions, onDelete, onStatusChange, selectedMont
       <div className="space-y-3">
         <AnimatePresence>
           {filtered.map((t) => (
-            <TransactionItem key={t.id} transaction={t} onDelete={onDelete} onStatusChange={onStatusChange}
+            <TransactionItem key={t.id} transaction={t} onDelete={onDelete} onEdit={onEdit} onStatusChange={onStatusChange}
               incCats={incCats} expCats={expCats} />
           ))}
         </AnimatePresence>
@@ -1974,7 +2118,7 @@ const StatsPage = ({ transactions, selectedMonth, onMonthChange, userPlan, onUpg
   transactions: Transaction[]; selectedMonth: string; onMonthChange: (m: string) => void;
   userPlan: UserPlan; onUpgrade: () => void; incCats: CategoryData[]; expCats: CategoryData[];
 }) => {
-  const monthly = useMemo(() => transactions.filter(t => getMonthKey(new Date(t.date)) === selectedMonth), [transactions, selectedMonth]);
+  const monthly = useMemo(() => transactions.filter(t => getTransactionMonth(t) === selectedMonth), [transactions, selectedMonth]);
   const expenseByCategory = useMemo(() => {
     const grouped: Record<string, number> = {};
     monthly.filter(t => t.type === 'expense').forEach(t => { grouped[t.category] = (grouped[t.category] || 0) + t.amount; });
@@ -1991,7 +2135,7 @@ const StatsPage = ({ transactions, selectedMonth, onMonthChange, userPlan, onUpg
       const d = new Date(year, month - 1 - i, 1);
       const key = getMonthKey(d);
       const label = MONTH_NAMES[d.getMonth()].substring(0, 3);
-      const mt = transactions.filter(t => getMonthKey(new Date(t.date)) === key);
+      const mt = transactions.filter(t => getTransactionMonth(t) === key);
       months.push({
         name: label,
         income: mt.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -2171,7 +2315,7 @@ const BudgetPage = ({ transactions, budgets, setBudgets, selectedMonth, onMonthC
 
   const monthlyExpenses = useMemo(() => {
     const expenses: Record<string, number> = {};
-    transactions.filter(t => t.type === 'expense' && getMonthKey(new Date(t.date)) === selectedMonth)
+    transactions.filter(t => t.type === 'expense' && getTransactionMonth(t) === selectedMonth)
       .forEach(t => { expenses[t.category] = (expenses[t.category] || 0) + t.amount; });
     return expenses;
   }, [transactions, selectedMonth]);
@@ -4369,6 +4513,7 @@ export default function App() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'income' | 'expense'>('income');
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   useEffect(() => { localStorage.setItem('transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('budgets', JSON.stringify(budgets)); }, [budgets]);
@@ -4432,7 +4577,7 @@ export default function App() {
     // Check budget warnings
     const monthlyExpenses: Record<string, number> = {};
     transactions
-      .filter(t => t.type === 'expense' && getMonthKey(new Date(t.date)) === currentMonthKey)
+      .filter(t => t.type === 'expense' && getTransactionMonth(t) === currentMonthKey)
       .forEach(t => { monthlyExpenses[t.category] = (monthlyExpenses[t.category] || 0) + t.amount; });
     
     budgets.filter(b => b.month === currentMonthKey).forEach(budget => {
@@ -4514,6 +4659,17 @@ export default function App() {
     setTransactions([{ ...transaction, id: Date.now().toString() }, ...transactions]);
   };
 
+  const handleUpdateTransaction = (updated: Transaction) => {
+    setTransactions(transactions.map(t => t.id === updated.id ? updated : t));
+    setEditingTransaction(null);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setModalType(transaction.type);
+    setModalOpen(true);
+  };
+
   const handleDeleteTransaction = (id: string) => {
     setTransactions(transactions.filter(t => t.id !== id));
   };
@@ -4542,6 +4698,7 @@ export default function App() {
             {activeTab === 'home' && (
               <motion.div key="home" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                 <HomePage transactions={transactions} onAdd={openModal} onDelete={handleDeleteTransaction}
+                  onEdit={handleEditTransaction}
                   onStatusChange={handleStatusChange} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}
                   userPlan={userPlan} onUpgrade={() => setShowPremiumModal(true)}
                   incCats={incomeCategories} expCats={expenseCategories}
@@ -4553,6 +4710,7 @@ export default function App() {
             {activeTab === 'transactions' && (
               <motion.div key="transactions" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                 <TransactionsPage transactions={transactions} onDelete={handleDeleteTransaction}
+                  onEdit={handleEditTransaction}
                   onStatusChange={handleStatusChange} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}
                   userPlan={userPlan} onUpgrade={() => setShowPremiumModal(true)}
                   incCats={incomeCategories} expCats={expenseCategories} />
@@ -4600,9 +4758,10 @@ export default function App() {
       <TabBar activeTab={activeTab} setActiveTab={setActiveTab} userPlan={userPlan} onUpgrade={() => setShowPremiumModal(true)} 
         unreadNotifications={unreadNotificationCount} securityEnabled={securitySettings.lockType !== 'none'} />
 
-      <AddTransactionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} type={modalType}
-        onAdd={handleAddTransaction} selectedMonth={selectedMonth}
-        categories={modalType === 'income' ? incomeCategories : expenseCategories} />
+      <AddTransactionModal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditingTransaction(null); }} type={modalType}
+        onAdd={handleAddTransaction} onUpdate={handleUpdateTransaction} selectedMonth={selectedMonth}
+        categories={modalType === 'income' ? incomeCategories : expenseCategories}
+        editTransaction={editingTransaction} />
 
       <ManageCategoriesModal isOpen={showManageCategories} onClose={() => setShowManageCategories(false)}
         incomeCategories={incomeCategories} expenseCategories={expenseCategories}
