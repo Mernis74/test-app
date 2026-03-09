@@ -4741,13 +4741,25 @@ export default function App() {
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('transactions');
-    if (saved) { const parsed = JSON.parse(saved); if (parsed.length > 0) return parsed; }
+    const wasReset = localStorage.getItem('dataWasReset');
+    if (saved) { 
+      const parsed = JSON.parse(saved); 
+      if (parsed.length > 0) return parsed; 
+    }
+    // Eğer veriler sıfırlandıysa, demo verileri yükleme
+    if (wasReset === 'true') return [];
     return generateDemoData().transactions;
   });
 
   const [budgets, setBudgets] = useState<Budget[]>(() => {
     const saved = localStorage.getItem('budgets');
-    if (saved) { const parsed = JSON.parse(saved); if (parsed.length > 0) return parsed; }
+    const wasReset = localStorage.getItem('dataWasReset');
+    if (saved) { 
+      const parsed = JSON.parse(saved); 
+      if (parsed.length > 0) return parsed; 
+    }
+    // Eğer veriler sıfırlandıysa, demo verileri yükleme
+    if (wasReset === 'true') return [];
     return generateDemoData().budgets;
   });
 
@@ -4951,6 +4963,9 @@ export default function App() {
     localStorage.removeItem('notifications');
     localStorage.removeItem('notificationSettings');
     localStorage.removeItem('securitySettings');
+    
+    // Mark that data was reset (prevent demo data from loading again)
+    localStorage.setItem('dataWasReset', 'true');
     
     // Reset states to defaults
     setTransactions([]);
