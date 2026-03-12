@@ -2,11 +2,17 @@
   "name": "Gelir - Gider Yönetimi",
   "short_name": "Gelir - Gider Yönetimi",
   "description": "Kişisel bütçe takip ve finansal yönetim uygulaması",
+  "version": "1.0.0",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e3a5f",
   "orientation": "portrait",
+  "scope": "/",
+  "lang": "tr",
+  "dir": "ltr",
+  "categories": ["finance", "productivity", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png.svg",
@@ -26,5 +32,30 @@
       "type": "image/svg+xml",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Gelir Ekle",
+      "short_name": "Gelir",
+      "description": "Yeni gelir ekle",
+      "url": "/?action=add-income",
+      "icons": []
+    },
+    {
+      "name": "Gider Ekle",
+      "short_name": "Gider",
+      "description": "Yeni gider ekle",
+      "url": "/?action=add-expense",
+      "icons": []
+    }
+  ],
+  "related_applications": [],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "auto"
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
 }

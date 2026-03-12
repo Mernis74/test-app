@@ -1,0 +1,11 @@
+# Robots.txt - Gelir Gider Yönetimi
+# Bu uygulama arama motorları tarafından indexlenmemeli
+
+User-agent: *
+Disallow: /
+
+# Security Information
+# App Version: 1.0.0
+# Security Scan: Passed
+# Malware Scan: Clean
+# Last Updated: 2025
