@@ -1,18 +1,29 @@
-// Service Worker - Push Notifications & Cache
+// Service Worker - Offline Support & Push Notifications
 
-const CACHE_NAME = 'gelir-gider-v2';
+const CACHE_NAME = 'gelir-gider-v3';
+const OFFLINE_URL = '/';
+
+// Tüm uygulama dosyaları
 const urlsToCache = [
   '/',
   '/index.html',
-  '/src/main.tsx',
-  '/src/App.tsx'
+  '/manifest.json',
+  '/icon.svg',
+  '/icons/icon-192x192.svg',
+  '/icons/icon-512x512.svg'
 ];
 
-// Install - Cache files
+// Install - Cache all files
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        console.log('Cache açıldı');
+        return cache.addAll(urlsToCache);
+      })
+      .catch((err) => {
+        console.log('Cache hatası:', err);
+      })
   );
   self.skipWaiting();
 });
@@ -24,6 +35,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('Eski cache silindi:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -33,11 +45,46 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch - Serve from cache, fallback to network
+// Fetch - Network first, then cache, then offline page
 self.addEventListener('fetch', (event) => {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') return;
+  
+  // Skip chrome-extension and other non-http requests
+  if (!event.request.url.startsWith('http')) return;
+  
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => response || fetch(event.request))
+    // Try network first
+    fetch(event.request)
+      .then((response) => {
+        // Clone the response
+        const responseClone = response.clone();
+        
+        // Cache the new response
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        
+        return response;
+      })
+      .catch(() => {
+        // Network failed, try cache
+        return caches.match(event.request)
+          .then((response) => {
+            if (response) {
+              return response;
+            }
+            
+            // If it's a navigation request, return the cached index.html
+            if (event.request.mode === 'navigate') {
+              return caches.match('/index.html');
+            }
+            
+            // Return offline fallback
+            return caches.match(OFFLINE_URL);
+          });
+      })
   );
 });
 
@@ -46,8 +93,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Gelir - Gider Yönetimi',
     body: 'Yeni bir bildiriminiz var',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
     tag: 'default',
     data: {}
   };
@@ -88,13 +135,11 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Focus existing window
         for (const client of clientList) {
           if ('focus' in client) {
             return client.focus();
           }
         }
-        // Open new window
         if (clients.openWindow) {
           return clients.openWindow('/');
         }
@@ -102,14 +147,14 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Background Sync - Check for notifications periodically
+// Background Sync
 self.addEventListener('sync', (event) => {
   if (event.tag === 'check-notifications') {
     event.waitUntil(checkAndNotify());
   }
 });
 
-// Periodic Background Sync (if supported)
+// Periodic Background Sync
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'check-due-payments') {
     event.waitUntil(checkAndNotify());
@@ -117,10 +162,15 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 async function checkAndNotify() {
-  // This will be called periodically to check for due payments
-  // The actual logic is in the main app, this just triggers a check
-  const clients = await self.clients.matchAll();
-  clients.forEach(client => {
+  const allClients = await self.clients.matchAll();
+  allClients.forEach(client => {
     client.postMessage({ type: 'CHECK_NOTIFICATIONS' });
   });
 }
+
+// Message handler
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

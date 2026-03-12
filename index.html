@@ -285,10 +285,46 @@
     <script type="module" src="/src/main.tsx"></script>
     
     <script>
-      // Service Worker
+      // Service Worker with Offline Support
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('SW kayıt başarılı:', registration.scope);
+              
+              // Update check
+              registration.addEventListener('updatefound', function() {
+                var newWorker = registration.installing;
+                newWorker.addEventListener('statechange', function() {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // New version available
+                    if (confirm('Yeni sürüm mevcut! Güncellemek ister misiniz?')) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                      window.location.reload();
+                    }
+                  }
+                });
+              });
+            })
+            .catch(function(error) {
+              console.log('SW kayıt hatası:', error);
+            });
+          
+          // Refresh page when new SW takes control
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            window.location.reload();
+          });
+        });
       }
+      
+      // Offline/Online detection
+      window.addEventListener('online', function() {
+        document.body.classList.remove('offline');
+      });
+      
+      window.addEventListener('offline', function() {
+        document.body.classList.add('offline');
+      });
     </script>
   </body>
 </html>
